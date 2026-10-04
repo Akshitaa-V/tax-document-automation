@@ -1,0 +1,128 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "description": "New withholding tax certificate in SharePoint -> check it via the taxdoc API -> log the result in Excel -> alert the tax team in Teams if it needs review.",
+  "parameters": {
+    "$connections": { "defaultValue": {}, "type": "Object" },
+    "$authentication": { "defaultValue": {}, "type": "SecureObject" },
+    "SiteAddress": { "defaultValue": "https://contoso.sharepoint.com/sites/TaxTeam", "type": "String" },
+    "InboxFolderId": { "defaultValue": "/Shared Documents/WHT Certificates/Inbox", "type": "String" },
+    "TaxdocApiUrl": { "defaultValue": "https://<your-api-host>/certificates", "type": "String" },
+    "TeamId": { "defaultValue": "<team-id>", "type": "String" },
+    "ChannelId": { "defaultValue": "<channel-id>", "type": "String" },
+    "WorkbookFileId": { "defaultValue": "/Shared Documents/WHT Certificates/certificate_log.xlsx", "type": "String" }
+  },
+  "triggers": {
+    "When_a_file_is_created_in_a_folder": {
+      "type": "OpenApiConnection",
+      "recurrence": { "frequency": "Minute", "interval": 5 },
+      "inputs": {
+        "host": {
+          "connectionName": "shared_sharepointonline",
+          "operationId": "OnNewFile",
+          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+        },
+        "parameters": {
+          "dataset": "@parameters('SiteAddress')",
+          "folderId": "@parameters('InboxFolderId')",
+          "inferContentType": true
+        },
+        "authentication": "@parameters('$authentication')"
+      },
+      "conditions": [
+        { "expression": "@endsWith(toLower(triggerOutputs()?['headers']?['x-ms-file-name']), '.pdf')" }
+      ]
+    }
+  },
+  "actions": {
+    "Check_certificate": {
+      "type": "Http",
+      "runAfter": {},
+      "inputs": {
+        "method": "POST",
+        "uri": "@parameters('TaxdocApiUrl')",
+        "headers": { "Content-Type": "application/json" },
+        "body": {
+          "file_name": "@{triggerOutputs()?['headers']?['x-ms-file-name']}",
+          "content_base64": "@{base64(triggerBody())}"
+        }
+      },
+      "retryPolicy": { "type": "exponential", "count": 3, "interval": "PT20S" }
+    },
+    "Parse_result": {
+      "type": "ParseJson",
+      "runAfter": { "Check_certificate": ["Succeeded"] },
+      "inputs": {
+        "content": "@body('Check_certificate')",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "file_name": { "type": "string" },
+            "status": { "type": "string" },
+            "error_count": { "type": "integer" },
+            "reclaim_potential": { "type": "number" },
+            "fields": { "type": "object" },
+            "findings": { "type": "array" }
+          }
+        }
+      }
+    },
+    "Log_in_Excel": {
+      "type": "OpenApiConnection",
+      "runAfter": { "Parse_result": ["Succeeded"] },
+      "inputs": {
+        "host": {
+          "connectionName": "shared_excelonlinebusiness",
+          "operationId": "AddRowV2",
+          "apiId": "/providers/Microsoft.PowerApps/apis/shared_excelonlinebusiness"
+        },
+        "parameters": {
+          "source": "@parameters('SiteAddress')",
+          "drive": "Documents",
+          "file": "@parameters('WorkbookFileId')",
+          "table": "CertificateLog",
+          "item": {
+            "File": "@body('Parse_result')?['file_name']",
+            "Certificate ID": "@body('Parse_result')?['fields']?['certificate_id']",
+            "Fund entity": "@body('Parse_result')?['fields']?['fund_entity']",
+            "Source country": "@body('Parse_result')?['fields']?['source_country']",
+            "Payment date": "@body('Parse_result')?['fields']?['payment_date']",
+            "Gross amount": "@body('Parse_result')?['fields']?['gross_amount']",
+            "Tax withheld": "@body('Parse_result')?['fields']?['wht_amount']",
+            "Reclaim potential": "@body('Parse_result')?['reclaim_potential']",
+            "Status": "@body('Parse_result')?['status']",
+            "Received": "@{utcNow()}"
+          }
+        },
+        "authentication": "@parameters('$authentication')"
+      }
+    },
+    "Needs_review": {
+      "type": "If",
+      "runAfter": { "Log_in_Excel": ["Succeeded"] },
+      "expression": { "and": [ { "greater": ["@body('Parse_result')?['error_count']", 0] } ] },
+      "actions": {
+        "Alert_tax_team": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "connectionName": "shared_teams",
+              "operationId": "PostMessageToConversation",
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_teams"
+            },
+            "parameters": {
+              "poster": "Flow bot",
+              "location": "Channel",
+              "body/recipient/groupId": "@parameters('TeamId')",
+              "body/recipient/channelId": "@parameters('ChannelId')",
+              "body/messageBody": "<p><b>Certificate needs review:</b> @{body('Parse_result')?['file_name']}<br>@{body('Parse_result')?['error_count']} issue(s), first one: @{first(body('Parse_result')?['findings'])?['message']}<br>Details are in the certificate log.</p>"
+            },
+            "authentication": "@parameters('$authentication')"
+          }
+        }
+      },
+      "else": { "actions": {} }
+    }
+  },
+  "outputs": {}
+}

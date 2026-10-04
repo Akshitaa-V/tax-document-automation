@@ -1,0 +1,47 @@
+// Power BI measures for the withholding tax dashboard.
+// Load the CSV files from out/powerbi/ and create these relationships (see model.md):
+//   fact_certificate[payment_date]  -> dim_date[date]
+//   fact_certificate[fund_entity]   -> dim_entity[fund_entity]
+//   fact_finding[file_name]         -> fact_certificate[file_name]
+//   fact_obligation[fund_entity]    -> dim_entity[fund_entity]
+
+Certificates = COUNTROWS ( fact_certificate )
+
+Certificates Clean =
+    CALCULATE ( [Certificates], fact_certificate[status] = "clean" )
+
+Clean Rate % =
+    DIVIDE ( [Certificates Clean], [Certificates] )
+
+Certificates Needing Review =
+    [Certificates] - [Certificates Clean]
+
+Gross Income EUR = SUM ( fact_certificate[gross_amount_eur] )
+
+Tax Withheld EUR = SUM ( fact_certificate[wht_amount_eur] )
+
+Effective WHT Rate % =
+    DIVIDE ( [Tax Withheld EUR], [Gross Income EUR] )
+
+Reclaim Potential EUR = SUM ( fact_certificate[reclaim_potential_eur] )
+
+Reclaim Opportunities =
+    CALCULATE ( COUNTROWS ( fact_finding ), fact_finding[rule] = "RECLAIM_OPPORTUNITY" )
+
+Reclaims Due Soon =
+    CALCULATE ( COUNTROWS ( fact_finding ), fact_finding[rule] = "RECLAIM_DUE_SOON" )
+
+Reclaims Expired =
+    CALCULATE ( COUNTROWS ( fact_finding ), fact_finding[rule] = "RECLAIM_EXPIRED" )
+
+Open Errors =
+    CALCULATE ( COUNTROWS ( fact_finding ), fact_finding[severity] = "error" )
+
+Filings Overdue =
+    CALCULATE ( COUNTROWS ( fact_obligation ), fact_obligation[state] = "overdue" )
+
+Filings Due Soon =
+    CALCULATE ( COUNTROWS ( fact_obligation ), fact_obligation[state] = "due_soon" )
+
+Tax Withheld EUR YTD =
+    TOTALYTD ( [Tax Withheld EUR], dim_date[date] )

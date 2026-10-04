@@ -1,0 +1,44 @@
+# Withholding tax rules used by the validator.
+#
+# IMPORTANT: the rates and reclaim periods below are simplified, illustrative
+# values for a demo data set. They are NOT tax advice and must be confirmed by
+# the tax team (treaty texts, local law, beneficial-owner status) before any use.
+#
+# statutory_rate: domestic dividend withholding tax rate in the source country (%)
+# treaty_rate:    reduced rate for a beneficial owner resident in the given country (%)
+# reclaim_years:  how long after the payment date a refund can still be claimed
+
+source_countries:
+  DE: {name: Germany,        currency: EUR, statutory_rate: 26.375, reclaim_years: 4, treaty_rate: {LU: 15.0, IE: 15.0}}
+  FR: {name: France,         currency: EUR, statutory_rate: 25.0,   reclaim_years: 2, treaty_rate: {LU: 15.0, IE: 15.0, DE: 15.0}}
+  CH: {name: Switzerland,    currency: CHF, statutory_rate: 35.0,   reclaim_years: 3, treaty_rate: {LU: 15.0, IE: 15.0, DE: 15.0}}
+  US: {name: United States,  currency: USD, statutory_rate: 30.0,   reclaim_years: 3, treaty_rate: {LU: 15.0, IE: 15.0, DE: 15.0}}
+  NL: {name: Netherlands,    currency: EUR, statutory_rate: 15.0,   reclaim_years: 3, treaty_rate: {LU: 15.0, IE: 15.0, DE: 15.0}}
+  ES: {name: Spain,          currency: EUR, statutory_rate: 19.0,   reclaim_years: 4, treaty_rate: {LU: 15.0, IE: 15.0, DE: 15.0}}
+  IT: {name: Italy,          currency: EUR, statutory_rate: 26.0,   reclaim_years: 4, treaty_rate: {LU: 15.0, IE: 15.0, DE: 15.0}}
+  GB: {name: United Kingdom, currency: GBP, statutory_rate: 0.0,    reclaim_years: 0, treaty_rate: {LU: 0.0, IE: 0.0, DE: 0.0}}
+
+allowed_currencies: [EUR, USD, CHF, GBP]
+
+# Fixed, illustrative conversion rates so dashboard totals can be shown in EUR.
+# Replace with the official month-end rates used by the tax team.
+fx_to_eur: {EUR: 1.0, USD: 0.92, CHF: 1.05, GBP: 1.17}
+
+checks:
+  amount_tolerance: 0.01        # rounding tolerance in document currency
+  reclaim_due_soon_days: 90     # warn this many days before a reclaim deadline
+  filing_due_soon_days: 14      # warn this many days before a filing deadline
+
+required_fields:
+  - certificate_id
+  - paying_agent
+  - fund_entity
+  - investee
+  - source_country
+  - residence_country
+  - payment_date
+  - currency
+  - gross_amount
+  - wht_rate
+  - wht_amount
+  - net_amount

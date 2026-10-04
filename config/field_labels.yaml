@@ -1,0 +1,14 @@
+# Label synonyms seen on certificates from different paying agents and custodians.
+# Add a new synonym here when a new document layout shows up; no code change needed.
+certificate_id:    [certificate no., voucher id, reference, certificate number]
+paying_agent:      [paying agent, issued by, custodian]
+fund_entity:       [beneficial owner, recipient, account holder]
+residence_country: [country of residence, recipient residence, tax residence]
+investee:          [issuer of securities, distributing company, company]
+source_country:    [source country, country of source, source state]
+payment_date:      [payment date, value date, date paid]
+currency:          [currency, payment currency]
+gross_amount:      [gross amount, gross dividend, gross income]
+wht_rate:          [withholding tax rate, tax rate applied, rate of tax deducted]
+wht_amount:        [withholding tax amount, tax withheld, tax deducted]
+net_amount:        [net amount, net payment, amount credited]
